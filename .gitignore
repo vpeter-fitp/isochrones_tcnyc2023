@@ -1,0 +1,6 @@
+*.mapdb
+*.mapdb.p
+network.dat
+network_settings.json
+*.zip
+!nyctsubway.zip
