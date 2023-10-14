@@ -1,0 +1,224 @@
+---
+title: "Isochrones 101: \"How far is everything?\""
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+<br>
+
+<center>
+
+![Going places!](output.png)
+
+</center>
+
+## Objective:
+
+Now that we've discussed what isochrones are and how we could use them, let's follow along on a coding example and create our own transit isochrone from Jay St. Metrotech! (Note that because of the Java installation requirements, you may need some extra time to do the setup for this demo)
+
+## Requirements:
+
+1.  [R](https://cran.r-project.org/bin/windows/base/) and ideally [R Studio](https://posit.co/download/rstudio-desktop/)
+
+2.  [Java](https://www.openlogic.com/openjdk-downloads?field_java_parent_version_target_id=416&field_operating_system_target_id=436&field_architecture_target_id=391&field_java_package_target_id=All). For this example, use Java 8 JDK installer, 64 bit.
+    
+3.  R Packages 
+
+    -   opentripplanner - R package that 'wraps' Open Trip Planner, and our isochrone generator for today.
+    -   sf - for spatial work in R
+    -   tidyverse - Cleaning dataframes.
+    -   tidytransit - Helps us read GTFS feeds.
+    -   mapview - Spatial visualization made easy.
+    
+If you don't already have these packages, uncomment the line below and run the following items to install them. 
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# install.packages(c('opentripplanner','sf','tidyverse','tidytransit','mapview'))
+```
+
+## Data:
+
+For ease of use, we've included required data within this repository.
+
+1.  [NYC OpenStreetMap Data which we've filtered (you can use your own
+    .pbf files for your own analysis!)](https://github.com/vpeter-fitp/isochrones_tcnyc2023/blob/main/data/nyc.pbf)
+2.  [NYC Subway GTFS Feed from Transit.Land (for this demonstration,
+    we've provided the file
+    here.)](https://github.com/vpeter-fitp/isochrones_tcnyc2023/blob/main/data/nyctsubway.zip)
+
+## You can download the data and run these snippets by yourself!
+
+Now let's jump into the demonstration.
+
+## Setup
+
+Now we load them:
+
+```{r message=FALSE, warning=FALSE}
+suppressPackageStartupMessages({
+  library(opentripplanner)
+  library(sf)
+  library(tidyverse)
+  library(tidytransit)  
+})
+
+```
+
+## Setting up OTP
+
+First, we'll download the Java .jar for OTP -- essentially the underlying application that R will communicate with. We use the built-in otp_dl_jar() function to do so. The function returns the path the OTP jar is saved to, which call `path_otp`.
+```{r message=FALSE, warning=FALSE}
+path_otp <- otp_dl_jar()
+```
+## Building our Graph
+
+The routing engine (OTP) needs something to route on. So let's point it to datasets it can use to build a network. 
+
+For convenience, we keep all of the required files for this demo in the repository. If your current working directory isn't already the repository folder, set or otherwise update the path here. Note that the actual data we'll use for this example is in the graphs/default subfolder.
+
+```{r}
+path_data <- getwd()
+```
+
+- For the street network, you can use the demo '.osm.pbf' file that gives the routing engine the required data from Open Street Map. This file was obtained from [Geofabrik's OpenStreetMap exports](https://download.geofabrik.de/) and pre-processed to clip it to an area around New York City.
+- For the transit network, we'll use the provided GTFS file for the subway.
+
+The code below will use the .pbf and GTFS files and create the network graph file if it doesn't already exist. Note that this package is picky about file naming: your OSM file should have the naming structure `myfile.osm.pbf` (with `.osm.pbf` at the end), and your gtfs file should have the naming structure `transitnetwork-gtfs.zip` (with `-gtfs.zip` at the end). 
+
+```{r message=FALSE, warning=FALSE}
+# By convention we send the outputs to a log object, but it isn't strictly necessary
+log_1 <- 
+  otp_build_graph(otp = path_otp, dir = path_data, router = "default", memory = 10240) 
+```
+OTP uses this .pbf and GTFS data to create a 'Graph.obj' file.
+
+Next, we'll start OTP. Once it's ready, we'll see a browser interface for OTP pop-up. In the future, you can start with this step after loading packages--you don't need to download OTP and build the graph object every time you build an isochrone.
+
+```{r}
+# By convention we send the outputs to a log object, but it isn't strictly necessary
+log_2 <- otp_setup(otp = path_otp, dir = path_data)
+```
+For isochrone generation, we'll connect to our server not through the user interface, but more directly through its API. The R `opentripplanner` package facilitates this with the use of a connection object we create below:
+
+```{r}
+otpcon <- otp_connect()
+```
+In a moment, we'll use this to create our isochrone.
+
+## Importing GTFS data into R
+
+We'll use GTFS data not only to build our network, but also as a source of data for visualizations and starting points for our isochrone.
+
+In R, we can use the tidytransit package to load the GTFS file and make it easier for us to work with it.
+
+```{r}
+gtfs_base <- tidytransit::read_gtfs(file.path(path_data,'graphs','default','nyctsubway-gtfs.zip'))
+```
+
+Before we continue, let's look at the tables present in this file.
+
+```{r}
+names(gtfs_base)
+```
+
+While there's much to work with in a GTFS feed, here we're only focused on plotting the location of subway station stops. We'll extract the latitude and lomgitude of our stops, performing a slight bit of renaming and aggregation to fit the needs of OTP.
+
+```{r}
+stops <- 
+  gtfs_base$stops %>%
+  select(
+    stop_name, 
+    id = parent_station, 
+    stop_lat, 
+    stop_lon
+  ) %>% 
+  # Taking shortcuts to quickly pick a point for a station
+  group_by(id) %>%
+  filter(row_number()==1) %>% 
+  ungroup()
+```
+
+## Where are we?
+
+Let's find a place where we can create our isochrone from -- Jay St. Metrotech!
+
+```{r}
+central_point <- 
+  stops %>% 
+  filter(
+    id == "A41" # This is one of the Jay St. Metrotech IDs.
+  ) 
+
+central_point
+```
+
+### Let's Run the Isochrone!
+
+```{r message=FALSE, warning=FALSE}
+isochrone_result <- 
+  otp_isochrone(
+    otpcon,
+    fromPlace = c(central_point$stop_lon, central_point$stop_lat),
+    mode = c("WALK", "TRANSIT"),
+    # note that for other feeds, you'll want to modify this such that dates
+    # are within the effective dates of the GTFS feed(s) used
+    date_time = Sys.time(),
+    #The first and second parameters are the lower and upper timing limits respectively for      # visualization. The third value is the change step.
+    cutoffSec = seq(from = 60*10, to = 60*60, by = 60*10)
+  )
+```
+
+### Creating the NYC Subway Stops for Visualization
+
+The generated isochrone_result needs to be visualized. We'll convert our stops file to a spatial layer we can visualize.
+
+```{r}
+stops_sf <- st_as_sf(stops, coords = c("stop_lon","stop_lat"), crs = 4326L, remove = FALSE)
+```
+
+ 
+To finally arrive at:
+
+```{r}
+mapview::mapview(
+    stops_sf,
+    zcol = 'stop_name',
+    legend = FALSE,
+    alpha.regions = 0.02,
+    col.regions = 'blue',
+    cex = 3,
+    lwd=0.5
+  ) +
+mapview::mapview(
+  isochrone_result, 
+  zcol = "time", 
+  alpha.regions = 0.25 # sets the opacity of items 
+) + 
+  mapview::mapview(
+    {stops_sf %>% filter(id == "A41")},
+    zcol = 'stop_name',
+    legend = FALSE,
+    col.regions = 'red',
+    lwd=0.5
+  )
+```
+
+# Congratulations!
+
+You've just developed your first isochrone!
+
+We'd recommend you try this out for areas that are special or cool to you! Or simply see how the transit systems affect it.
+
+### Thanks for joining us today!
+
+We'd be more than happy to run through this demo with you!
+OR
+Reach out if you'd ever want to discuss transit data!
+
+Our inbox is always open at:
+
+* [Wylie Timmerman, Senior Transportation Planner & Data Science Team Technical Lead](https://www.foursquareitp.com/staff/wylie-timmerman/)
+
+* [Vickram Peter, Transportation Planner & Data Scientist](https://www.foursquareitp.com/staff/vickram-peter/)

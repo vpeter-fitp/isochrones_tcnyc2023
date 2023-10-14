@@ -1,0 +1,16 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+*.zip
+!graphs/default/nyctsubway-gtfs.zip
+*.mapdb
+*.mapdb.p
+network.dat
+network_settings.json
+graphs/default/Graph.obj
+*.png
+!output.png
+*.html
+!index.html
