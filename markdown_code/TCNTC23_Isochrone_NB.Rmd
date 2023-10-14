@@ -43,10 +43,10 @@ let's follow along on a coding example and create our own!
 ## Data:
 
 1.  [NYC OpenStreetMap Data which we've filtered (you can use your own
-    .pbf files for your own analysis!)](github.com)
+    .pbf files for your own analysis!)](https://github.com/vpeter-fitp/isochrones_tcnyc2023/blob/main/data/nyc.pbf)
 2.  [NYC Subway GTFS Feed from Transit.Land (for this demonstration,
     we've provided the file
-    here.)](https://www.transit.land/feeds/f-dr5r-nyctsubway)
+    here.)](https://github.com/vpeter-fitp/isochrones_tcnyc2023/blob/main/data/nyctsubway.zip)
 
 ## You can download the data and run these snippets by yourself!
 
