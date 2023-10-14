@@ -22,7 +22,7 @@ Now that we've discussed what isochrones are and how we could use them, let's fo
 
 1.  [R](https://cran.r-project.org/bin/windows/base/) and ideally [R Studio](https://posit.co/download/rstudio-desktop/)
 
-2.  [Java](https://docs.ropensci.org/opentripplanner/articles/prerequisites.html#the-correct-version-of-java-for-otp).
+2.  [Java](https://www.openlogic.com/openjdk-downloads?field_java_parent_version_target_id=416&field_operating_system_target_id=436&field_architecture_target_id=391&field_java_package_target_id=All). For this example, use Java 8 JDK installer, 64 bit.
     
 3.  R Packages 
 
